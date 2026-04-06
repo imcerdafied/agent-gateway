@@ -71,7 +71,7 @@ export class DelegationManager {
     if (delegation.status === 'revoked') {
       return { permitted: false, delegation, reason: 'Delegation has been revoked' };
     }
-    if (delegation.status === 'expired' || new Date(delegation.expires_at) < new Date()) {
+    if (delegation.status === 'expired' || new Date(delegation.expires_at) <= new Date()) {
       if (delegation.status !== 'expired') delegation.status = 'expired';
       return { permitted: false, delegation, reason: 'Delegation has expired' };
     }
@@ -92,20 +92,20 @@ export class DelegationManager {
       return { permitted: false, delegation, reason: `Action '${action_id}' is not in delegation scope` };
     }
 
-    // Check per-transaction limit
-    if (amount !== undefined && scope.max_amount_per_transaction !== undefined && amount > scope.max_amount_per_transaction) {
-      return { permitted: false, delegation, reason: `Amount $${amount} exceeds per-transaction limit of $${scope.max_amount_per_transaction}` };
-    }
-
     // Get current daily spend
     const spendMap = this.dailySpend.get(delegation.delegation_id);
     const actionSpend = spendMap?.get(action_id) ?? 0;
     const totalSpend = spendMap ? Array.from(spendMap.values()).reduce((a, b) => a + b, 0) : 0;
 
-    // Check escalation (per-action daily limit and confirmation threshold)
+    // Check escalation first (confirmation threshold and per-action daily limit)
     const escalation = checkEscalation(delegation, action_id, amount, actionSpend, new Date());
     if (escalation.escalated) {
       return { permitted: false, delegation, escalation, reason: escalation.reason };
+    }
+
+    // Check per-transaction limit (hard deny, no escalation)
+    if (amount !== undefined && scope.max_amount_per_transaction !== undefined && amount > scope.max_amount_per_transaction) {
+      return { permitted: false, delegation, reason: `Amount $${amount} exceeds per-transaction limit of $${scope.max_amount_per_transaction}` };
     }
 
     // Check total daily spend
