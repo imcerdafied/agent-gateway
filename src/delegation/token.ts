@@ -9,8 +9,11 @@ export function signToken(delegation: Delegation, secret: string): string {
     venue_id: delegation.venue_id,
     scope_ids: delegation.scopes.filter((s) => s.allowed).map((s) => s.action_id),
   };
+  const expiresIn = Math.floor((new Date(delegation.expires_at).getTime() - Date.now()) / 1000);
+  // jwt.sign requires expiresIn >= 1; for already-expired delegations use 1s so the token can be signed,
+  // the check() method will catch expiry via the expires_at date comparison.
   return jwt.sign(payload, secret, {
-    expiresIn: Math.floor((new Date(delegation.expires_at).getTime() - Date.now()) / 1000),
+    expiresIn: Math.max(expiresIn, 1),
   });
 }
 
